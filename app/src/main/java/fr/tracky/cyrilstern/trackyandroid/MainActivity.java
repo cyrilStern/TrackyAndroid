@@ -24,8 +24,11 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
+
+import com.github.nkzawa.socketio.client.Url;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -38,7 +41,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URL;
 
@@ -54,17 +59,16 @@ public class MainActivity extends AppCompatActivity
     static final int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
     static final String ip = "31.12.64.211";
     static final int port = 8000;
-    private MediaPlayer mediaPlayer;
     private Thread th;
     private JSONArray getRadio;
     private RelativeLayout rel;
     private JSONObject row;
-    private String url2;
     boolean isPlaying;
     int playBufSize;
     protected Socket socket;
     protected AudioTrack audioTrack;
     protected Handler handler;
+    protected  CustomMediaPlayer mediaPlayer;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -79,16 +83,19 @@ public class MainActivity extends AppCompatActivity
                         .setAction("Action", null).show();
             }
         });
+        rel = (RelativeLayout) findViewById(R.id.content_main);
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                 this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawer.setDrawerListener(toggle);
         toggle.syncState();
-
+        final LinearLayout layout = (LinearLayout) findViewById(R.id.thelinear);
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
         Socket socket = new Socket();
+        mediaPlayer = new CustomMediaPlayer();
+
         handler = new Handler(){
 
             @Override
@@ -103,21 +110,37 @@ public class MainActivity extends AppCompatActivity
                         row = getRadio.getJSONObject(i);
 
                     Button button  = new Button(getApplicationContext());
-                    button.setId(10220 + i);
+                    button.setId(10220 + i); button.setWidth(320);
+                    button.setHeight(40);
+                    button.getBackground().setAlpha(51);
+                    layout.addView(button);
 
-                        button.setText(row.getString("radioStationName"));
+
+                    button.setText(row.getString("radioStationName"));
 
 
-                        url2 = row.getString("radioUrl");
-
+                    final String url3 = row.getString("radioUrl");
                     button.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
-                            if(th !=null){
+                            if(th !=null || mediaPlayer.isPlaying()){
                                 mediaPlayer.stop();
-                                mediaPlayer.reset();
-                                th.interrupt();
-                                th = null;
+                                if(mediaPlayer.getDataSource().equals(url3)){
+                                    mediaPlayer.reset();
+                                    th.interrupt();
+                                    th = null;
+
+                                }else{
+                                    try {
+                                        mediaPlayer.setDataSource(url3);
+                                        mediaPlayer.prepare();
+                                        mediaPlayer.start();
+
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+
                             }else {
                                 th = new Thread(new Runnable() {
                                     @Override
@@ -125,7 +148,7 @@ public class MainActivity extends AppCompatActivity
 
                                         mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
                                         try {
-                                            mediaPlayer.setDataSource(url2);
+                                            mediaPlayer.setDataSource(url3);
                                         } catch (IOException e) {
                                             e.printStackTrace();
                                         }
@@ -143,7 +166,6 @@ public class MainActivity extends AppCompatActivity
                             }
                         }
                     });
-                    rel.addView(button);
 
                 }
             } catch (JSONException e) {
@@ -157,11 +179,9 @@ public class MainActivity extends AppCompatActivity
     }
     private void init(final Context context){
 
-        urlrestapi = (EditText) findViewById(R.id.editText);
         rel = (RelativeLayout) findViewById(R.id.content_main);
         playBufSize=AudioTrack.getMinBufferSize(frequency, channelConfiguration, audioEncoding);
         audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, frequency, channelConfiguration, audioEncoding, playBufSize, AudioTrack.MODE_STREAM);
-        mediaPlayer = new MediaPlayer();
 //        Button button1 = new Button(this);
 //        rel.addView(button1);
 //        button1.setOnClickListener(new View.OnClickListener() {
@@ -253,7 +273,7 @@ public class MainActivity extends AppCompatActivity
                              url = new URL("http://192.168.1.10:3000/radio");
 
                              urlConnection = (HttpURLConnection) url.openConnection();
-
+                            if(urlConnection.getResponseMessage().equals(HttpURLConnection.HTTP_OK)){
                             InputStream in = new BufferedInputStream(urlConnection.getInputStream());
                             InputStreamReader isw = new InputStreamReader(in);
                             BufferedReader reader = new BufferedReader(new InputStreamReader(in, "iso-8859-1"), 8);
@@ -268,12 +288,41 @@ public class MainActivity extends AppCompatActivity
                             handler.sendMessage(myMessage);
                                 //Object obj = parser.parse(;
 
+                            }else{
+                                
+                            }
+
+
+
 
 
 
 
                         } catch (Exception e) {
-                            Log.e("merde",e.toString());
+                            try {
+                                url = new URL("http://89.92.177.105:3000/radio");
+                            urlConnection = (HttpURLConnection) url.openConnection();
+
+                            InputStream in = new BufferedInputStream(urlConnection.getInputStream());
+                            InputStreamReader isw = new InputStreamReader(in);
+                            BufferedReader reader = new BufferedReader(new InputStreamReader(in, "iso-8859-1"), 8);
+                            StringBuilder sb = new StringBuilder();
+                            String line = null;
+                            while ((line = reader.readLine()) != null) // Read line by line
+                                sb.append(line + "\n");
+                            Bundle b = new Bundle();
+                            b.putString("collection", sb.toString());
+                            // envoyer le message au Hanlder
+                            myMessage.setData(b);
+                            handler.sendMessage(myMessage);
+                            } catch (MalformedURLException e1) {
+                                e1.printStackTrace();
+                            } catch (UnsupportedEncodingException e1) {
+                                e1.printStackTrace();
+                            } catch (IOException e1) {
+                                e1.printStackTrace();
+                            }
+
                         } finally {
                             if (urlConnection != null) {
                                 urlConnection.disconnect();
