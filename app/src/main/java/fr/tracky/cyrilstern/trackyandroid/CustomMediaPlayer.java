@@ -4,6 +4,7 @@ import android.content.Context;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.util.Log;
+import android.view.View;
 
 import java.io.IOException;
 
@@ -13,6 +14,8 @@ import java.io.IOException;
 
 public class CustomMediaPlayer extends MediaPlayer {
     private String dataSource;
+
+
 
     @Override
     public void setDataSource(String path) throws IOException, IllegalArgumentException, SecurityException, IllegalStateException {
